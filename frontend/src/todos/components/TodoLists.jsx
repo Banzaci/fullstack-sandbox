@@ -1,73 +1,41 @@
 import React, { Fragment, useState, useEffect } from 'react'
-import {
-  Card,
-  CardContent,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Typography,
-} from '@mui/material'
-import ReceiptIcon from '@mui/icons-material/Receipt'
 import { TodoListForm } from './TodoListForm'
-
-// Simulate network
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
-const fetchTodoLists = () => {
-  return sleep(1000).then(() =>
-    Promise.resolve({
-      '0000000001': {
-        id: '0000000001',
-        title: 'First List',
-        todos: ['First todo of first list!'],
-      },
-      '0000000002': {
-        id: '0000000002',
-        title: 'Second List',
-        todos: ['First todo of second list!'],
-      },
-    })
-  )
-}
+import TodoItems from './ToDoItems'
+import { postUpdateTodoList, loadTodoList } from '../../utils/api'
+import debounce from '../../utils/debounce'
+import { Card } from '@mui/material'
 
 export const TodoLists = ({ style }) => {
   const [todoLists, setTodoLists] = useState({})
-  const [activeList, setActiveList] = useState()
-
+  const [activeList, setActiveList] = useState();
+  
   useEffect(() => {
-    fetchTodoLists().then(setTodoLists)
+    (async () => {
+      const response = await loadTodoList();
+      setTodoLists(response);
+    })()
   }, [])
 
-  if (!Object.keys(todoLists).length) return null
+  const onUpdateTodoList = async (id, todos) => {
+    const response = await postUpdateTodoList({ id, todos })
+    setTodoLists(response);
+  };
+
+  const onChange = debounce((id, todos) => onUpdateTodoList(id, todos));
+
+  const onSelectTodo = (todo) => setActiveList(todo);
+  
+  if (Object.keys(todoLists).length === 0) return <Card>There is nothing todo.</Card>
+  
   return (
     <Fragment>
-      <Card style={style}>
-        <CardContent>
-          <Typography component='h2'>My Todo Lists</Typography>
-          <List>
-            {Object.keys(todoLists).map((key) => (
-              <ListItem key={key} button onClick={() => setActiveList(key)}>
-                <ListItemIcon>
-                  <ReceiptIcon />
-                </ListItemIcon>
-                <ListItemText primary={todoLists[key].title} />
-              </ListItem>
-            ))}
-          </List>
-        </CardContent>
-      </Card>
-      {todoLists[activeList] && (
+      <TodoItems data={todoLists} style={style} onSelectTodo={onSelectTodo} />
+      {activeList && (
         <TodoListForm
-          key={activeList} // use key to make React recreate component to reset internal state
-          todoList={todoLists[activeList]}
-          saveTodoList={(id, { todos }) => {
-            const listToUpdate = todoLists[id]
-            setTodoLists({
-              ...todoLists,
-              [id]: { ...listToUpdate, todos },
-            })
-          }}
+          key={activeList.id} // use key to make React recreate component to reset internal state
+          todoList={activeList}
+          saveTodoList={(id, todos) => onChange(id, todos)}
+          onDeleteTodo={(id, todos) => onUpdateTodoList(id, todos)}
         />
       )}
     </Fragment>
